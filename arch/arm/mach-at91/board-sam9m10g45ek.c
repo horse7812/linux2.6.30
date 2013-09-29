@@ -277,38 +277,38 @@ static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data1= {
 static struct mcp251x_platform_data mcp251x_CAN_data0 = {
 	 .oscillator_frequency = 12000000,
 	 .board_specific_setup = NULL,
-      	 .model = CAN_MCP251X_MCP2515,
-      	 .power_enable = NULL,
-      	 .transceiver_enable = NULL,
+	 .model = CAN_MCP251X_MCP2515,
+	 .power_enable = NULL,
+	 .transceiver_enable = NULL,
 };
 static struct mcp251x_platform_data mcp251x_CAN_data1 = {
 	 .oscillator_frequency = 12000000,
 	 .board_specific_setup = NULL,
-      	 .model = CAN_MCP251X_MCP2515,
-      	 .power_enable = NULL,
-      	 .transceiver_enable = NULL,
+	 .model = CAN_MCP251X_MCP2515,
+	 .power_enable = NULL,
+	 .transceiver_enable = NULL,
 };
 
 
 static struct spi_board_info __initdata ek_spi0_devices[] = {
 	[0]={
-                 .modalias      = "mcp251x",
-                 .bus_num       = 0,
-                 .chip_select   = 0,
-                 .irq           = AT91_PIN_PD20,
-                 .max_speed_hz  = 2*1000*1000,
-                 .mode = SPI_MODE_0,
-                 .platform_data = &mcp251x_CAN_data0,
-              },
-        [1]={
-                 .modalias      = "mcp251x",
-                 .bus_num       = 0,
-                 .chip_select   = 1,
-                 .irq           = AT91_PIN_PD21,
-                 .max_speed_hz  = 2*1000*1000, 
-                 .mode = SPI_MODE_0,
-                 .platform_data = &mcp251x_CAN_data1,
-              },    
+		.modalias      = "mcp251x",
+		.bus_num       = 0,
+		.chip_select   = 0,
+		.irq           = AT91_PIN_PD20,
+		.max_speed_hz  = 2*1000*1000,
+		.mode = SPI_MODE_0,
+		.platform_data = &mcp251x_CAN_data0,
+		},
+	[1]={
+		.modalias      = "mcp251x",
+		.bus_num       = 0,
+		.chip_select   = 1,
+		.irq           = AT91_PIN_PD21,
+		.max_speed_hz  = 2*1000*1000, 
+		.mode = SPI_MODE_0,
+		.platform_data = &mcp251x_CAN_data1,
+		},    
 	[2]={
 		.modalias = "sc16is7x2",
 		.bus_num = 0,		

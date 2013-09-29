@@ -2194,6 +2194,7 @@ extern unsigned int __machine_arch_type;
 #define MACH_TYPE_PELCO_HOMER          2210
 #define MACH_TYPE_OFSP8                2211
 #define MACH_TYPE_AT91SAM9G45EKES      2212
+//#define MACH_TYPE_AT91SAM9G45EKES      1830
 #define MACH_TYPE_GUF_CUPID            2213
 #define MACH_TYPE_EAB1R                2214
 #define MACH_TYPE_DESIREC              2215
