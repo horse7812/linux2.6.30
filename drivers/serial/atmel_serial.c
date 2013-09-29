@@ -59,6 +59,31 @@
 
 #include <linux/serial_core.h>
 
+#define	P_DEBUG_SWITCH		(0)
+
+#if	(P_DEBUG_SWITCH > 0)
+	#define P_DEBUG_DEV(dev, fmt, args...)   printk("<1>" "<kernel>[%s %s %s(%d):%s]"fmt,\
+						dev_driver_string(dev), \
+						dev_name(dev), __FILE__, __LINE__,__FUNCTION__, ##args)
+	#define P_DEBUG(fmt, args...)   printk("<1>" "<kernel>[%s(%d):%s]"fmt, __FILE__, __LINE__, \
+						__FUNCTION__, ##args)
+	#define P_DEBUG_PORT(port, fmt, args...)    do{ if (port->line > 1){\
+				printk("<1>" "<kernel>[%s(%d):%s]"fmt, __FILE__, __LINE__, \
+						__FUNCTION__, ##args);}\
+				}while(0)
+	#define P_DEBUG_NEWLINE()	printk("<1>""\n")
+	#define P_DEBUG_PORT_NEWLINE(port)	do{ if (port->line > 1){\
+										printk("<1>""\n");\
+									}}while(0)
+#else
+	#define P_DEBUG_DEV(fmt, args...)
+	#define P_DEBUG(fmt, args...)
+	#define P_DEBUG_PORT(port, fmt, args...)    
+	#define P_DEBUG_NEWLINE()	
+	#define P_DEBUG_PORT_NEWLINE(port)	
+#endif
+
+
 #ifdef CONFIG_SERIAL_ATMEL_TTYAT
 
 /* Use device name ttyAT, major 204 and minor 154-169.  This is necessary if we
@@ -155,6 +180,28 @@ static struct atmel_uart_port atmel_ports[ATMEL_MAX_UART];
 static struct console atmel_console;
 #endif
 
+
+static void rs485_status_switch(struct uart_port *port, u8 is_send){
+
+	int	value	= (1 == is_send)?(1):(0);
+
+	P_DEBUG_PORT(port, "port-line = %d stauts: %s\n", port->line, (1 == is_send)?("tx"):("rx"));
+	/* Set RS485 mode, add by chuM */
+	// USART1
+	if(port->line == 2){
+		at91_set_gpio_output(AT91_PIN_PB14, value);
+	}
+	// USART2
+	if(port->line == 3){
+		at91_set_gpio_output(AT91_PIN_PB15, value);
+	}
+	// USART3
+	if(port->line == 4){
+		at91_set_gpio_output(AT91_PIN_PB16, value);
+	}
+	/*   end  add   */
+}
+
 static inline struct atmel_uart_port *
 to_atmel_uart_port(struct uart_port *uart)
 {
@@ -192,6 +239,7 @@ static bool atmel_use_dma_tx(struct uart_port *port)
  */
 static u_int atmel_tx_empty(struct uart_port *port)
 {
+	P_DEBUG_PORT(port, "\n");
 	return (UART_GET_CSR(port) & ATMEL_US_TXEMPTY) ? TIOCSER_TEMT : 0;
 }
 
@@ -216,52 +264,6 @@ static void atmel_set_mctrl(struct uart_port *port, u_int mctrl)
 				at91_set_gpio_value(AT91_PIN_PA21, 1);
 		}
 	}
-#endif
-
-/*add by zzq, Aug.26,2013*/
-#ifdef CONFIG_ARCH_AT91SAM9G45    
-		
-/*
-        if(cpu_is_at91sam9g45()) {
-		if(port->mapbase == AT91SAM9G45_BASE_US0) {
-			if (mctrl & TIOCM_RTS) {
-				
-				at91_set_gpio_value(AT91_PIN_PB17, 1);
-				printk(KERN_INFO "ttysac1 txe HIGH!\n");
-			}else{
-				at91_set_gpio_value(AT91_PIN_PB17, 0);
-				printk(KERN_INFO "ttysac1 txe LOW!\n");
-			}
-		}
-		if(port->mapbase == AT91SAM9G45_BASE_US1) {
-			if (mctrl & TIOCM_RTS) {
-				at91_set_gpio_value(AT91_PIN_PB14, 1);
-				printk(KERN_INFO "ttysac2 txe HIGH!\n");
-			}else{
-				at91_set_gpio_value(AT91_PIN_PB14, 0);
-				printk(KERN_INFO "ttysac2 txe LOW!\n");
-			}
-		}	
-		if(port->mapbase == AT91SAM9G45_BASE_US2) {
-			if (mctrl & TIOCM_RTS) {				
-				at91_set_gpio_value(AT91_PIN_PB15, 1);
-				printk(KERN_INFO "ttysac3 txe HIGH!\n");
-			}else{
-				at91_set_gpio_value(AT91_PIN_PB15, 0);
-				printk(KERN_INFO "ttysac3 txe LOW!\n");
-			}	
-		}	
-		if(port->mapbase == AT91SAM9G45_BASE_US3) {
-			if (mctrl & TIOCM_RTS) {
-				at91_set_gpio_value(AT91_PIN_PB16, 1);
-				printk(KERN_INFO "ttysac3 txe HIGH!\n");
-			}else{
-				at91_set_gpio_value(AT91_PIN_PB16, 0);
-				printk(KERN_INFO "ttysac3 txe LOW!\n");
-			}	
-		}	
-        }
-       */
 #endif
 
 	if (mctrl & TIOCM_RTS)
@@ -314,41 +316,23 @@ static u_int atmel_get_mctrl(struct uart_port *port)
  */
 static void atmel_stop_tx(struct uart_port *port)
 {
-	if (atmel_use_dma_tx(port)) {	
+	if (atmel_use_dma_tx(port)) {
 		/* disable PDC transmit */
 		UART_PUT_PTCR(port, ATMEL_PDC_TXTDIS);
 		UART_PUT_IDR(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE);
-	} else
+		P_DEBUG_PORT(port, "dma\n");
+	} else{
 		UART_PUT_IDR(port, ATMEL_US_TXRDY);
-
-	/*add for rs485*/
-	while(0 == atmel_tx_empty(port));		
-       	
-	if( port->line ==  1)  {
-			at91_set_gpio_value(AT91_PIN_PB17,0);
-			printk(KERN_INFO "ttysac1 stop tx\n");
-        	}
-	if( port->line ==  2)  {
-			at91_set_gpio_value(AT91_PIN_PB14,0);
-			printk(KERN_INFO "ttysac2 stop tx\n");
-		}
-	if( port->line ==  3)  {
-			at91_set_gpio_value(AT91_PIN_PB15,0);
-			printk(KERN_INFO "ttysac3 stop tx\n");
-		}
-	if( port->line ==  4)  {
-			at91_set_gpio_value(AT91_PIN_PB16,0);
-			printk(KERN_INFO "ttysac4 stop tx\n");
-		}
-		
-	/*add end*/
+		P_DEBUG_PORT(port, "interrupt\n");
+	}
+	rs485_status_switch(port, 0);
 }
 
 /*
  * Start transmitting.
  */
 static void atmel_start_tx(struct uart_port *port)
-{        
+{
 	if (atmel_use_dma_tx(port)) {
 		if (UART_GET_PTSR(port) & ATMEL_PDC_TXTEN)
 			/* The transmitter is already running.  Yes, we
@@ -358,8 +342,12 @@ static void atmel_start_tx(struct uart_port *port)
 		UART_PUT_IER(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE);
 		/* re-enable PDC transmit */
 		UART_PUT_PTCR(port, ATMEL_PDC_TXTEN);
-	} else
-		UART_PUT_IER(port, ATMEL_US_TXRDY);	
+		P_DEBUG_PORT(port, "dma\n");
+	} else{
+		UART_PUT_IER(port, ATMEL_US_TXRDY);
+		P_DEBUG_PORT(port, "interrupt\n");
+	}
+	rs485_status_switch(port, 1);
 }
 
 /*
@@ -494,19 +482,22 @@ static void atmel_rx_chars(struct uart_port *port)
  * disabled)
  */
 static void atmel_tx_chars(struct uart_port *port)
-{	
+{
 	struct circ_buf *xmit = &port->info->xmit;
 
-	if(port->line>0)
-                printk(KERN_INFO "Enter atmel_tx_chars!\n");
-
+	P_DEBUG_PORT(port, "enter\n");
 	if (port->x_char && UART_GET_CSR(port) & ATMEL_US_TXRDY) {
 		UART_PUT_CHAR(port, port->x_char);
 		port->icount.tx++;
 		port->x_char = 0;
 	}
-	if (uart_circ_empty(xmit) || uart_tx_stopped(port))
+	if (uart_circ_empty(xmit) || uart_tx_stopped(port)){
+		while (!atmel_tx_empty(port));
+		atmel_stop_tx(port);
+		P_DEBUG_PORT(port, "\n");
+		P_DEBUG_PORT_NEWLINE(port);
 		return;
+	}
 
 	while (UART_GET_CSR(port) & ATMEL_US_TXRDY) {
 		UART_PUT_CHAR(port, xmit->buf[xmit->tail]);
@@ -519,8 +510,15 @@ static void atmel_tx_chars(struct uart_port *port)
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
 
-	if (!uart_circ_empty(xmit))
+	UART_PUT_IER(port, ATMEL_US_TXRDY);
+	P_DEBUG_PORT(port, "leave\n");
+#if 0
+	if (!uart_circ_empty(xmit)){
 		UART_PUT_IER(port, ATMEL_US_TXRDY);
+	}else {
+
+	}
+#endif
 }
 
 /*
@@ -585,9 +583,6 @@ atmel_handle_transmit(struct uart_port *port, unsigned int pending)
 			tasklet_schedule(&atmel_port->tasklet);
 		}
 	}
-	
-        if(pending & ATMEL_US_TXEMPTY) 		
-		atmel_stop_tx(port);
 }
 
 /*
@@ -638,12 +633,13 @@ static void atmel_tx_dma(struct uart_port *port)
 	struct atmel_dma_buffer *pdc = &atmel_port->pdc_tx;
 	int count;
 
-        
+	P_DEBUG_PORT(port, "enter\n");
 	/* nothing left to transmit? */
-	if (UART_GET_TCR(port)) 		
+	if (UART_GET_TCR(port)){
+		P_DEBUG_PORT(port, "--------------------------------\n");
 		return;
-        
-		
+	}
+
 	xmit->tail += pdc->ofs;
 	xmit->tail &= UART_XMIT_SIZE - 1;
 
@@ -656,6 +652,7 @@ static void atmel_tx_dma(struct uart_port *port)
 	UART_PUT_PTCR(port, ATMEL_PDC_TXTDIS);
 
 	if (!uart_circ_empty(xmit) && !uart_tx_stopped(port)) {
+		P_DEBUG_PORT(port, (!uart_circ_empty(xmit))?: "not empty\n", "not stopped\n");
 		dma_sync_single_for_device(port->dev,
 					   pdc->dma_addr,
 					   pdc->dma_size,
@@ -669,27 +666,16 @@ static void atmel_tx_dma(struct uart_port *port)
 		/* re-enable PDC transmit and interrupts */
 		UART_PUT_PTCR(port, ATMEL_PDC_TXTEN);
 		UART_PUT_IER(port, ATMEL_US_ENDTX | ATMEL_US_TXBUFE);
-		/*
-		if( port->line ==  1)  {
-			at91_set_gpio_value(AT91_PIN_PB17,1);
-			printk(KERN_INFO "ttysac1 start atmel_tx_dma\n");
-        	}
-		if( port->line ==  2)  {
-			at91_set_gpio_value(AT91_PIN_PB14,1);
-			printk(KERN_INFO "ttysac2 start atmel_tx_dma\n");
-		}
-		if( port->line ==  3)  {
-			at91_set_gpio_value(AT91_PIN_PB15,1);
-			printk(KERN_INFO "ttysac3 start atmel_tx_dma\n");
-		}
-		if( port->line ==  4)  {
-			at91_set_gpio_value(AT91_PIN_PB16,1);
-			printk(KERN_INFO "ttysac4 start atmel_tx_dma\n");
-		}*/
+	}else {
+		P_DEBUG_PORT(port, (uart_circ_empty(xmit))?: "empty\n", "stopped\n");
+		while (!atmel_tx_empty(port));
+		atmel_stop_tx(port);
 	}
-
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
+	P_DEBUG_PORT(port, "leave\n");
+	P_DEBUG_PORT_NEWLINE(port);
+
 }
 
 static void atmel_rx_from_ring(struct uart_port *port)
@@ -849,6 +835,7 @@ static void atmel_tasklet_func(unsigned long data)
 	/* The interrupt handler does not take the lock */
 	spin_lock(&port->lock);
 
+	P_DEBUG_PORT(port, "\n");
 	if (atmel_use_dma_tx(port))
 		atmel_tx_dma(port);
 	else
@@ -908,6 +895,8 @@ static int atmel_startup(struct uart_port *port)
 		return retval;
 	}
 
+	//rs485 init status: recv
+	rs485_status_switch(port, 0);
 	/*
 	 * Initialize DMA (if necessary)
 	 */
@@ -993,7 +982,7 @@ static int atmel_startup(struct uart_port *port)
 		/* enable receive only */
 		UART_PUT_IER(port, ATMEL_US_RXRDY);
 	}
-	
+
 	return 0;
 }
 
@@ -1165,21 +1154,15 @@ static void atmel_set_termios(struct uart_port *port, struct ktermios *termios,
 	else
 		mode |= ATMEL_US_USMODE_NORMAL;
 
-	//if (termios->c_cflag & CRTSCTS)
-	//	printk(KERN_INFO "ttysac ATMEL_US_USMODE_HWHS!\n");
-	//else
-	//	printk(KERN_INFO "ttysac ATMEL_US_USMODE_NORMAL!\n");
-
-	// add by dongking at 2011-07-01, like as timll
 	/* Set RS485 mode, add by cheng */
 	if(port->line == 1)		// USART0
 		mode |= ATMEL_US_USMODE_RS485;	
-	//if(port->line == 2)		// USART1
-	//	mode |= ATMEL_US_USMODE_RS485;	
-	//if(port->line == 3)		// USRAT2
-	//	mode |= ATMEL_US_USMODE_RS485;
-	//if(port->line == 4)		// USART3
-	//	mode |= ATMEL_US_USMODE_RS485;
+	if(port->line == 2)		// USART1
+		mode |= ATMEL_US_USMODE_RS485;	
+	if(port->line == 3)		// USRAT2
+		mode |= ATMEL_US_USMODE_RS485;
+	if(port->line == 4)		// USART3
+		mode |= ATMEL_US_USMODE_RS485;
 
 	/*   end  add   */
 
@@ -1348,6 +1331,7 @@ static struct uart_ops atmel_pops = {
 /*
  * Configure the port from the platform device resource info.
  */
+
 static void __devinit atmel_init_port(struct atmel_uart_port *atmel_port,
 				      struct platform_device *pdev)
 {
@@ -1360,6 +1344,9 @@ static void __devinit atmel_init_port(struct atmel_uart_port *atmel_port,
 	port->fifosize	= 1;
 	port->line	= pdev->id;
 	port->dev	= &pdev->dev;
+
+	P_DEBUG_PORT(port, "\n");
+	rs485_status_switch(port, 0);
 
 	port->mapbase	= pdev->resource[0].start;
 	port->irq	= pdev->resource[1].start;
@@ -1412,9 +1399,12 @@ void __init atmel_register_uart_fns(struct atmel_port_fns *fns)
 #ifdef CONFIG_SERIAL_ATMEL_CONSOLE
 static void atmel_console_putchar(struct uart_port *port, int ch)
 {
+	rs485_status_switch(port, 1);
 	while (!(UART_GET_CSR(port) & ATMEL_US_TXRDY))
 		cpu_relax();
 	UART_PUT_CHAR(port, ch);
+	while (!atmel_tx_empty(port));
+	rs485_status_switch(port, 0);
 }
 
 /*
