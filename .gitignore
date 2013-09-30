@@ -62,6 +62,9 @@ series
 cscope.*
 ncscope.*
 
+make_uimage.sh
+make_modules.sh
+
 *.orig
 *~
 \#*#
