@@ -55,6 +55,7 @@
  * struct mcp251x_platform_data.
  *
  */
+#define DEBUG     1
 
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -74,6 +75,21 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/can/mcp251x.h>
+#include <linux/gpio.h>
+
+
+#define	P_DEBUG_SWITCH		(0)
+
+#if	(P_DEBUG_SWITCH > 0)
+	#define P_DEBUG_DEV(dev, fmt, args...)   printk("<1>" "<kernel>[%s %s %s(%d):%s]"fmt,\
+						dev_driver_string(dev), \
+						dev_name(dev), __FILE__, __LINE__,__FUNCTION__, ##args)
+	#define P_DEBUG(fmt, args...)   printk("<1>" "<kernel>[%s(%d):%s]"fmt, __FILE__, __LINE__, \
+						__FUNCTION__, ##args)
+#else
+	#define P_DEBUG_DEV(fmt, args...)
+	#define P_DEBUG(fmt, args...)
+#endif
 
 /* SPI interface instruction set */
 #define INSTRUCTION_WRITE	0x02
@@ -485,13 +501,16 @@ static void mcp251x_hw_wakeup(struct spi_device *spi)
 	mcp251x_write_bits(spi, CANINTF, CANINTF_WAKIF, CANINTF_WAKIF);
 
 	state = mcp251x_read_reg(spi, CANSTAT) & CANCTRL_REQOP_MASK;
-	printk(KERN_INFO "state=%02x\n",state);
+	P_DEBUG("before state=%02x\n",state);
 	/* Wait until the device is awake */
-	if (!wait_for_completion_timeout(&priv->awake, HZ))
+	if (!wait_for_completion_timeout(&priv->awake, HZ)){
 		dev_err(&spi->dev, "MCP251x didn't wake-up\n");
+	}else {
+		P_DEBUG("MCP251x wake-up\n");
+	}
 
 	state = mcp251x_read_reg(spi, CANSTAT) & CANCTRL_REQOP_MASK;
-	printk(KERN_INFO "state=%02x\n",state);
+	P_DEBUG("after state=%02x\n",state);
 }
 
 static netdev_tx_t mcp251x_hard_start_xmit(struct sk_buff *skb,
@@ -552,11 +571,18 @@ static void mcp251x_set_normal_mode(struct spi_device *spi)
 			  CANINTE_TX0IE | CANINTE_RX1IE | CANINTE_RX0IE |
 			  CANINTF_MERRF);
 
-	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
+#if 0
+	/* Put device into loopback mode */
+	mcp251x_write_reg(spi, CANCTRL, CANCTRL_REQOP_LOOPBACK);
+	P_DEBUG("MCP251x enter in loopback mode\n");
+#else
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK){
 		/* Put device into loopback mode */
 		mcp251x_write_reg(spi, CANCTRL, CANCTRL_REQOP_LOOPBACK);
-	else {
+		P_DEBUG("MCP251x enter in loopback mode\n");
+	}else {
 		/* Put device into normal mode */
+		//mcp251x_write_reg(spi, CANCTRL, CANCTRL_REQOP_NORMAL|CANCTRL_OSM);
 		mcp251x_write_reg(spi, CANCTRL, CANCTRL_REQOP_NORMAL);
 
 		/* Wait for the device to enter normal mode */
@@ -569,7 +595,9 @@ static void mcp251x_set_normal_mode(struct spi_device *spi)
 				return;
 			}
 		}
+		P_DEBUG("MCP251x enter in normal mode\n");
 	}
+#endif
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 }
 
@@ -579,20 +607,32 @@ static int mcp251x_do_set_bittiming(struct net_device *net)
 	struct can_bittiming *bt = &priv->can.bittiming;
 	struct spi_device *spi = priv->spi;
 	u8 state0,state1;
-	printk(KERN_INFO "enter mcp251x_do_set_bittiming\n");
-	
+	unsigned long timeout;
+
+	P_DEBUG("enter\n");
 	/* Store original mode and set mode to config */
 	state0 = mcp251x_read_reg(spi, CANSTAT) & CANCTRL_REQOP_MASK;
-	printk(KERN_INFO "state=%02x\n",state0);
+	P_DEBUG("befor mcp251x_hw_wakeup :state=%02x\n",state0);
 
 	mcp251x_hw_wakeup(spi);
-	
 	mcp251x_write_bits(spi, CANCTRL, CANCTRL_REQOP_MASK,
 			   CANCTRL_REQOP_CONF);
 
-	state1 = mcp251x_read_reg(spi, CANSTAT) & CANCTRL_REQOP_MASK;
-	printk(KERN_INFO "state=%02x\n",state1);
-
+	/* Wait for the device to enter config mode */
+	timeout = jiffies + HZ;
+	while (1) {
+		state1 = mcp251x_read_reg(spi, CANSTAT) & CANCTRL_REQOP_MASK;
+		P_DEBUG("current state=%02x\n",state1);
+		if (0x80 == state1){
+			break;
+		}
+		schedule();
+		if (time_after(jiffies, timeout)) {
+			dev_err(&spi->dev, "MCP251x didn't"
+				" enter in normal mode\n");
+			return -1;
+		}
+	}
 	mcp251x_write_reg(spi, CNF1, ((bt->sjw - 1) << CNF1_SJW_SHIFT) |
 			  (bt->brp - 1));
 	mcp251x_write_reg(spi, CNF2, CNF2_BTLMODE |
@@ -631,6 +671,7 @@ static int mcp251x_setup(struct net_device *net, struct mcp251x_priv *priv,
 	mcp251x_write_bits(spi, RXBCTRL(1),
 			   RXBCTRL_RXM0 | RXBCTRL_RXM1,
 			   RXBCTRL_RXM0 | RXBCTRL_RXM1);
+	mcp251x_do_set_bittiming(net);
 	return 0;
 }
 
@@ -679,9 +720,13 @@ static irqreturn_t mcp251x_can_isr(int irq, void *dev_id)
 	struct net_device *net = (struct net_device *)dev_id;
 	struct mcp251x_priv *priv = netdev_priv(net);
 
+	P_DEBUG("irq gpio value = %d\n", gpio_get_value(irq_to_gpio(irq)));
+	if (0 == gpio_get_value(irq_to_gpio(irq))){
 	/* Schedule bottom half */
 	if (!work_pending(&priv->irq_work))
+		P_DEBUG("queue work\n");
 		queue_work(priv->wq, &priv->irq_work);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -693,7 +738,7 @@ static int mcp251x_open(struct net_device *net)
 	struct mcp251x_platform_data *pdata = spi->dev.platform_data;
 	int ret;
 
-	printk(KERN_INFO "enter mcp251x_open\n");
+	P_DEBUG("enter\n");
 
 	if (pdata->transceiver_enable)
 		pdata->transceiver_enable(1);
@@ -702,10 +747,11 @@ static int mcp251x_open(struct net_device *net)
 	priv->tx_skb = NULL;
 	priv->tx_len = 0;
 
-	ret = request_irq(spi->irq, mcp251x_can_isr,
+	ret = request_irq(gpio_to_irq(spi->irq), mcp251x_can_isr,
 			  IRQF_SHARED, DEVICE_NAME, net); //IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING|
 	if (ret < 0) {
 		dev_err(&spi->dev, "failed to acquire irq %d\n", spi->irq);
+		P_DEBUG("irq request failed\n");
 		return ret;
 	}
 
@@ -819,8 +865,10 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 		int can_id = 0, data1 = 0;
 
 		mcp251x_write_reg(spi, EFLG, 0x00);
+		P_DEBUG("eflag = 0x%d\n", eflag);
 
 		if (priv->restart_tx) {
+			P_DEBUG("restart tx! restart tx = %d\n", priv->restart_tx);
 			priv->restart_tx = 0;
 			mcp251x_write_reg(spi, TXBCTRL(0), 0);
 			if (priv->tx_skb || priv->tx_len)
@@ -830,6 +878,7 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 		}
 
 		if (priv->wake) {
+			P_DEBUG("priv->wake occure\n");
 			/* Wait whilst the device wakes up */
 			mdelay(10);
 			priv->wake = 0;
@@ -837,6 +886,7 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 
 		intf = mcp251x_read_reg(spi, CANINTF);
 		mcp251x_write_bits(spi, CANINTF, intf, 0x00);
+		P_DEBUG("intf = 0x%x\n", intf);
 
 		/* Update can state */
 		if (eflag & EFLG_TXBO) {
@@ -881,6 +931,13 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 			struct sk_buff *skb;
 			struct can_frame *frame;
 
+			if (intf & CANINTF_ERRIF)  {
+				P_DEBUG("intf  errif  set\n");
+			}
+
+			if (can_id & CAN_ERR_RESTARTED) {
+				P_DEBUG("can id  can_err_restarted set\n");
+			}
 			/* Create error frame */
 			skb = alloc_can_err_skb(net, &frame);
 			if (skb) {
@@ -909,6 +966,7 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 			if (priv->can.restart_ms == 0) {
 				can_bus_off(net);
 				mcp251x_hw_sleep(spi);
+				P_DEBUG("can bus off\n");
 				return;
 			}
 		}
@@ -920,12 +978,15 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 			complete(&priv->awake);
 
 		if (intf & CANINTF_MERRF) {
+			P_DEBUG("canintf MERRF done\n");
 			/* If there are pending Tx buffers, restart queue */
 			txbnctrl = mcp251x_read_reg(spi, TXBCTRL(0));
+			P_DEBUG("txb0ctrl = 0x%x\n", txbnctrl);
 			if (!(txbnctrl & TXBCTRL_TXREQ)) {
 				if (priv->tx_skb || priv->tx_len)
 					mcp251x_clean(net);
 				netif_wake_queue(net);
+				P_DEBUG("canintf MERRF netif_wake_queue\n");
 			}
 		}
 
@@ -937,6 +998,7 @@ static void mcp251x_irq_work_handler(struct work_struct *ws)
 				priv->tx_len = 0;
 			}
 			netif_wake_queue(net);
+			P_DEBUG("can frame send ok\n");
 		}
 
 		if (intf & CANINTF_RX0IF)

@@ -927,7 +927,7 @@ void __init at91_add_device_spi(struct spi_board_info *devices, int nr_devices)
 		/* enable device irq_pin */
 		at91_set_GPIO_periph(devices[i].irq, 0);
 		at91_set_gpio_input(devices[i].irq,0);
-                at91_set_deglitch(devices[i].irq,1);
+		at91_set_deglitch(devices[i].irq,1);
 		/* pass chip-select pin to driver */
 		devices[i].controller_data = (void *) cs_pin;
 	}
