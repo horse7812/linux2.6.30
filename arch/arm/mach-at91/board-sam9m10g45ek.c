@@ -137,8 +137,9 @@ static struct dm9000_plat_data dm9000_platdata0 = {
     .flags      = DM9000_PLATF_16BITONLY|DM9000_PLATF_NO_EEPROM,
     .dev_addr	= {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 };
+//dm9000 with fiber-optic
 static struct dm9000_plat_data dm9000_platdata1 = {
-    .flags      = DM9000_PLATF_16BITONLY|DM9000_PLATF_NO_EEPROM,
+    .flags      = DM9000_PLATF_16BITONLY|DM9000_PLATF_NO_EEPROM|DM9000_PLATF_FIBER_OPTIC,
     .dev_addr	= {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x1F}
 };
 

@@ -22,6 +22,7 @@
 #define DM9000_PLATF_EXT_PHY	(0x0008)
 #define DM9000_PLATF_NO_EEPROM	(0x0010)
 #define DM9000_PLATF_SIMPLE_PHY (0x0020)  /* Use NSR to find LinkStatus */
+#define DM9000_PLATF_FIBER_OPTIC (0x8000)  /* use fiber-optic */
 
 /* platfrom data for platfrom device structure's platfrom_data field */
 
