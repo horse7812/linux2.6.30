@@ -18,7 +18,7 @@
  *	Ben Dooks <ben@simtec.co.uk>
  *	Sascha Hauer <s.hauer@pengutronix.de>
  */
-#define		DEBUG				0
+#define		DEBUG				1
 
 #include <linux/module.h>
 #include <linux/ioport.h>
@@ -81,7 +81,8 @@ MODULE_PARM_DESC(watchdog, "transmit timeout in milliseconds");
 enum dm9000_type {
 	TYPE_DM9000E,	/* original DM9000 */
 	TYPE_DM9000A,
-	TYPE_DM9000B
+	TYPE_DM9000B,
+	TYPE_DM9000BI
 };
 
 /* Structure/enum declaration ------------------------------- */
@@ -284,8 +285,9 @@ static void dm9000_set_io(struct board_info *db, int byte_width)
 
 static void dm9000_schedule_poll(board_info_t *db)
 {
-	if (db->type == TYPE_DM9000E)
+	if (db->type == TYPE_DM9000E){
 		schedule_delayed_work(&db->phy_poll, HZ * 2);
+	}
 }
 
 static int dm9000_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
@@ -582,8 +584,9 @@ dm9000_poll_work(struct work_struct *w)
 			else
 				netif_carrier_on(ndev);
 		}
-	} else
+	} else{
 		mii_check_media(&db->mii, netif_msg_link(db), 0);
+	}
 	
 	if (netif_running(ndev))
 		dm9000_schedule_poll(db);
@@ -611,15 +614,16 @@ dm9000_release_board(struct platform_device *pdev, struct board_info *db)
 	kfree(db->addr_req);
 }
 
-static unsigned char dm9000_type_to_char(enum dm9000_type type)
+static unsigned char * dm9000_type_to_str(enum dm9000_type type)
 {
 	switch (type) {
-	case TYPE_DM9000E: return 'e';
-	case TYPE_DM9000A: return 'a';
-	case TYPE_DM9000B: return 'b';
+	case TYPE_DM9000E: return "e";
+	case TYPE_DM9000A: return "a";
+	case TYPE_DM9000B: return "b";
+	case TYPE_DM9000BI: return "bi";
 	}
 
-	return '?';
+	return "?";
 }
 
 /*
@@ -680,9 +684,6 @@ static void
 dm9000_init_dm9000(struct net_device *dev)
 {
 	board_info_t *db = netdev_priv(dev);
-	/* parent device */
-	struct device	*parent_dev	= db->dev;			
-	struct dm9000_plat_data *pdata = parent_dev->platform_data;
 	unsigned int imr;
 
 	dm9000_dbg(db, 1, "entering %s\n", __func__);
@@ -703,7 +704,7 @@ dm9000_init_dm9000(struct net_device *dev)
 	iow(db, DM9000_BPTR, 0x3f);	/* Less 3Kb, 200us */
 	iow(db, DM9000_FCR, 0xff);	/* Flow Control */
 	iow(db, DM9000_SMCR, 0);        /* Special Mode */
-	if (pdata->flags & DM9000_PLATF_FIBER_OPTIC)
+	if (db->flags & DM9000_PLATF_FIBER_OPTIC)
 	{	
 		printk("<0>""modify phy reg to fix fiber-optic\n");
 		//deactive phyxcer
@@ -985,6 +986,7 @@ static irqreturn_t dm9000_interrupt(int irq, void *dev_id)
 
 	if (db->type != TYPE_DM9000E) {
 		if (int_status & ISR_LNKCHNG) {
+			dev_dbg(db->dev, "schedule_delayed_work\n");
 			/* fire a link-change request */
 			schedule_delayed_work(&db->phy_poll, 1);
 		}
@@ -1359,6 +1361,10 @@ dm9000_probe(struct platform_device *pdev)
 	case CHIPR_DM9000B:
 		db->type = TYPE_DM9000B;
 		break;
+	case CHIPR_DM9000BI:
+		db->type = TYPE_DM9000BI;
+		break;
+
 	default:
 		dev_dbg(db->dev, "ID %02x => defaulting to DM9000E\n", id_val);
 		db->type = TYPE_DM9000E;
@@ -1419,8 +1425,8 @@ dm9000_probe(struct platform_device *pdev)
 	ret = register_netdev(ndev);
 
 	if (ret == 0)
-		printk(KERN_INFO "%s: dm9000%c at %p,%p IRQ %d MAC: %pM (%s)\n",
-		       ndev->name, dm9000_type_to_char(db->type),
+		printk(KERN_INFO "%s: dm9000%s at %p,%p IRQ %d MAC: %pM (%s)\n",
+		       ndev->name, dm9000_type_to_str(db->type),
 		       db->io_addr, db->io_data, ndev->irq,
 		       ndev->dev_addr, mac_src);
 	return 0;
