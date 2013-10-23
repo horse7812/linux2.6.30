@@ -1202,6 +1202,25 @@ dm9000_stop(struct net_device *ndev)
 
 #define res_size(_r) (((_r)->end - (_r)->start) + 1)
 
+static ssize_t show_port(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	const char *port_str[]	= {"electric port\n", "fiber-optic port\n"};
+	const char *curr;
+	int   len;
+	struct net_device *ndev = container_of(dev, struct net_device, dev);
+	board_info_t *db = netdev_priv(ndev);
+
+	curr =	(db->flags & DM9000_PLATF_FIBER_OPTIC)?(port_str[1]):(port_str[0]);
+	len = strlen(curr);
+	memcpy(buf, curr, len);
+
+	return len;
+}
+
+static struct device_attribute port_type =
+__ATTR(port_type, S_IRUGO , show_port, NULL);
+
 /*
  * Search DM9000 board, allocate space and register it
  */
@@ -1215,6 +1234,7 @@ dm9000_probe(struct platform_device *pdev)
 	int ret = 0;
 	int iosize;
 	int i;
+	int error = 0;
 	u32 id_val;
 
 	printk(KERN_INFO "DM9000 probe\n");
@@ -1421,6 +1441,7 @@ dm9000_probe(struct platform_device *pdev)
 			 "set using ifconfig\n", ndev->name);
 	}
 
+
 	platform_set_drvdata(pdev, ndev);
 	ret = register_netdev(ndev);
 
@@ -1429,6 +1450,9 @@ dm9000_probe(struct platform_device *pdev)
 		       ndev->name, dm9000_type_to_str(db->type),
 		       db->io_addr, db->io_data, ndev->irq,
 		       ndev->dev_addr, mac_src);
+	error = device_create_file(&(ndev->dev), &port_type);
+	if (error)
+		goto out;
 	return 0;
 
 out:
