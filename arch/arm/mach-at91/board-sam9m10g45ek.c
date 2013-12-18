@@ -262,14 +262,14 @@ const char *sc16is7x2_gpio_names1[] = {
 
 static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data0= {
 	.uartclk = 25000000,
-	.uart_base = 6,
+	.uart_base = 5,
 	.gpio_base=180,
 	.label = "spi_uart",
 	.names = sc16is7x2_gpio_names0,
 };
 static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data1= {
 	.uartclk = 25000000,
-	.uart_base = 8,
+	.uart_base = 7,
 	.gpio_base=188,
 	.label = "spi_uart",
 	.names = sc16is7x2_gpio_names1,

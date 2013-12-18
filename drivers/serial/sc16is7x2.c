@@ -955,7 +955,8 @@ static int __devinit sc16is7x2_probe(struct spi_device *spi)
 	/* Only even uart base numbers are supported */
 	pdata = spi->dev.platform_data;
 	
-	if (!pdata || !pdata->gpio_base || pdata->uart_base& 1) {
+	//if (!pdata || !pdata->gpio_base || pdata->uart_base& 1) {
+	if (!pdata || !pdata->gpio_base) {
 		dev_dbg(&spi->dev, "incorrect or missing platform data\n");		
 		return -EINVAL;
 	}
