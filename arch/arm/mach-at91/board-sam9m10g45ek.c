@@ -636,22 +636,27 @@ static struct ac97c_platform_data ek_ac97_data = {
  */
 
 static struct gpio_led ek_leds[] = {
-	{	// XLED0 
+	{	// XLED0 ALARM
 		.name			= "XLED0",
 		.gpio			= AT91_PIN_PD2,
 		.active_low		= 1,			// XLED0 is off
 		.default_trigger	= "none",
 	},
-	{	// XLED1 
+	{	// XLED1 FAULT
 		.name			= "XLED1",
 		.gpio			= AT91_PIN_PD3,
 		.active_low		= 1,			// XLED1 is off
 		.default_trigger	= "none",
 	}
+#if 0
+	{	// XLED2 RUN
+		.name			= "XLED2",
+		.gpio			= AT91_PIN_PD2,
+		.active_low		= 1,			// XLED0 is off
+		.default_trigger	= "none",
+	},
+#endif
 };
-
-//static struct gpio_led ek_leds[] = {};
-
 
 /*
  * PWM Leds
