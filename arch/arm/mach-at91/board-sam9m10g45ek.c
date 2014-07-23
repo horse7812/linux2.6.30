@@ -219,7 +219,7 @@ static struct at91_usbh_data __initdata ek_usbh_hs_data = {
  * USB HS Device port
  */
 static struct usba_platform_data __initdata ek_usba_udc_data = {
-	.vbus_pin	= AT91_PIN_PD19,
+	.vbus_pin	= AT91_PIN_PD7,
 };
 
 
@@ -261,14 +261,14 @@ const char *sc16is7x2_gpio_names1[] = {
 };
 
 static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data0= {
-	.uartclk = 25000000,
+	.uartclk = 5529600,
 	.uart_base = 5,
 	.gpio_base=180,
 	.label = "spi_uart",
 	.names = sc16is7x2_gpio_names0,
 };
 static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data1= {
-	.uartclk = 25000000,
+	.uartclk = 5529600,
 	.uart_base = 7,
 	.gpio_base=188,
 	.label = "spi_uart",
@@ -276,14 +276,14 @@ static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT_data1= {
 };
 
 static struct mcp251x_platform_data mcp251x_CAN_data0 = {
-	 .oscillator_frequency = 12000000,
+	 .oscillator_frequency = 25*1000*1000,
 	 .board_specific_setup = NULL,
 	 .model = CAN_MCP251X_MCP2515,
 	 .power_enable = NULL,
 	 .transceiver_enable = NULL,
 };
 static struct mcp251x_platform_data mcp251x_CAN_data1 = {
-	 .oscillator_frequency = 12000000,
+	 .oscillator_frequency = 25*1000*1000,
 	 .board_specific_setup = NULL,
 	 .model = CAN_MCP251X_MCP2515,
 	 .power_enable = NULL,
